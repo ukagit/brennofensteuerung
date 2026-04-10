@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HeizOffen Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #000; --surface: #121212; --surface-bright: #1e1e1e; --accent: #00d2ff; --accent-glow: rgba(0,210,255,0.3); --text: #fff; --text-dim: #a0a0a0; --success: #00ff88; --danger: #ff3b30; --border: #2c2c2e; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, system-ui; background: var(--bg); color: var(--text); margin: 0; padding: 15px 15px 80px 15px; overflow-x: hidden; }
+        .hero { text-align: center; padding: 30px 0; background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%); }
+        .temp-main { font-size: 5rem; font-weight: 200; display: flex; justify-content: center; align-items: center; margin: 0; }
+        .temp-unit { font-size: 1.5rem; color: var(--accent); margin-left: 5px; }
+        .status-msg { font-size: 2.2rem; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; margin-bottom: 5px; text-shadow: 0 0 20px var(--accent-glow); }
+        .card { background: var(--surface); border-radius: 20px; padding: 15px; margin-bottom: 12px; border: 1px solid var(--border); }
+        .card h2 { margin: 0 0 10px 0; font-size: 1rem; color: var(--text-dim); }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .info-box { background: var(--surface-bright); padding: 12px; border-radius: 12px; }
+        .info-label { display: block; font-size: 0.7rem; color: var(--text-dim); }
+        .info-value { font-size: 1rem; font-weight: 600; color: var(--accent); }
+        .action-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(18,18,18,0.9); backdrop-filter: blur(10px); padding: 15px; display: flex; justify-content: space-around; border-top: 1px solid var(--border); z-index: 1000; }
+        .nav-btn { background: none; border: none; color: var(--text-dim); font-size: 0.7rem; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .nav-btn.active { color: var(--accent); }
+        .btn-large { width: 100%; padding: 14px; border-radius: 12px; border: none; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-secondary { background: var(--surface-bright); color: #fff; border: 1px solid var(--border); }
+        .task-card { background: var(--surface-bright); padding: 12px; border-radius: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--accent); }
+        input { background: var(--surface-bright); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 10px; width: 100%; margin-bottom: 8px; }
+        #chartContainer { height: 180px; }
+        .zoom-btn, .profile-btn { background: var(--surface-bright); border: 1px solid var(--border); color: var(--text-dim); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; }
+        .zoom-btn.active, .profile-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+        .loading { opacity: 0.5; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div id="runState" class="status-msg">STANDBY</div>
+        <div id="errorMsg" style="background:var(--danger); color:#fff; padding:10px; border-radius:12px; margin-bottom:10px; display:none; font-weight:bold; font-size:0.9rem;">⚠️ WARNUNG: --</div>
+        <h1 class="temp-main"><span id="temp">--</span><span class="temp-unit">°C</span></h1>
+        <div id="taskHero" style="font-size: 1rem; color: var(--accent); border: 1px solid var(--accent); padding: 2px 8px; border-radius: 6px; display: none; margin-top: 10px;">TASK --</div>
+    </div>
+    <div class="info-grid">
+        <div class="info-box"><span class="info-label">PROFIL</span><span class="info-value" id="currentProf">-</span></div>
+        <div class="info-box"><span class="info-label">TASK</span><span class="info-value" id="currentTask">-</span></div>
+        <div class="info-box"><span class="info-label">HALTEZEIT</span><span class="info-value" id="holdDuration">-</span></div>
+        <div class="info-box"><span class="info-label">ZEIT</span><span class="info-value" id="readableTime">--:--</span></div>
+    </div>
+    <div class="card" style="margin-top: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h2>📊 VERLAUF</h2>
+            <div style="display: flex; gap: 4px;">
+                <button class="zoom-btn active" onclick="setZoom(120)">2h</button>
+                <button class="zoom-btn" onclick="setZoom(600)">10h</button>
+                <button class="zoom-btn" onclick="setZoom(1200)">20h</button>
+            </div>
+        </div>
+        <div id="chartContainer"><canvas id="chart"></canvas></div>
+    </div>
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div onclick="renameProfile()" style="cursor:pointer">
+                <h2 id="pNameDisplay" style="margin:0; color:var(--accent)">Programm A</h2>
+                <span style="font-size:0.6rem; color:var(--text-dim)">Klicken zum Umbenennen</span>
+            </div>
+            <div style="display: flex; gap: 3px;">
+                <button class="profile-btn" onclick="setProfile('A')">A</button><button class="profile-btn" onclick="setProfile('B')">B</button><button class="profile-btn" onclick="setProfile('C')">C</button><button class="profile-btn" onclick="setProfile('D')">D</button><button class="profile-btn" onclick="setProfile('E')">E</button><button class="profile-btn" onclick="setProfile('F')">F</button>
+            </div>
+        </div>
+        <div id="taskList"></div>
+        <button class="btn-secondary" onclick="toggleAddForm()">+ Schritt</button>
+        <div id="addForm" style="display:none; margin-top: 10px;">
+            <input type="number" id="t_nr" placeholder="Nr">
+            <input type="number" id="t_temp" placeholder="Ziel °C">
+            <input type="number" id="t_rate" placeholder="Rate °C/h">
+            <input type="number" id="t_hold" placeholder="Halten (min)">
+            <button class="btn-primary" onclick="addTask()">Speichern</button>
+        </div>
+    </div>
+    <div class="card">
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary" style="flex:1" onclick="location.href='/log'">Log</button>
+            <button class="btn-secondary" style="flex:1" onclick="systemUpdate()">Update</button>
+            <button class="btn-danger" style="flex:2" onclick="abortTask()">STOPP ALL</button>
+        </div>
+    </div>
+    <div class="action-bar">
+        <button class="nav-btn active" onclick="setMode(1)">🌡️ Monitor</button>
+        <button class="nav-btn" onclick="setMode(2)">📈 Graph</button>
+        <button class="nav-btn" onclick="setMode(3)">🤖 Auto</button>
+        <button class="nav-btn" onclick="relayToggle()">🔌 Relais</button>
+    </div>
+    <script>
+        let historyData = [], zoomMinutes = 120, isUpdating = false, curP = "A";
+        const ctx = document.getElementById('chart').getContext('2d');
+        const chart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Temp', data: [], borderColor: '#00d2ff', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true, backgroundColor: 'rgba(0,210,255,0.05)', yAxisID: 'y' }, { label: 'Task', data: [], borderColor: '#ffcc00', borderWidth: 1, pointRadius: 0, stepped: true, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }, y1: { position: 'right', display: false }, x: { grid: { color: (c) => c.index % 5 === 0 ? '#444' : 'transparent' }, ticks: { color: '#a0a0a0', maxRotation: 0, autoSkip: false, callback: function(v, i) { return i % 5 === 0 ? this.getLabelForValue(v).substring(0,5) : ''; } } } } } });
+        function setZoom(m) { zoomMinutes = m; document.querySelectorAll('.zoom-btn').forEach(b => b.classList.toggle('active', b.innerText.includes(m/60+'h'))); updateChart(); }
+        function updateChart() { if(!historyData.length) return; const p = Math.ceil(zoomMinutes/3); const d = historyData.slice(-p); chart.data.labels = d.map(x=>x[0]); chart.data.datasets[0].data = d.map(x=>x[1]); chart.data.datasets[1].data = d.map(x=>x[2]); chart.update('none'); }
+        async function update() {
+            if(isUpdating) return; isUpdating = true;
+            try {
+                const s = await fetch('/status').then(r => r.json());
+                document.getElementById('temp').innerText = s.temperature !== null ? s.temperature.toFixed(1) : "--";
+                const errDiv = document.getElementById('errorMsg');
+                if(s.error) { errDiv.innerText = "⚠️ " + s.error; errDiv.style.display = "block"; } else { errDiv.style.display = "none"; }
+                document.getElementById('runState').innerText = s.running ? "IN BETRIEB" : "STANDBY";
+                document.getElementById('pNameDisplay').innerText = s.profile_name;
+                curP = s.profile;
+                document.querySelectorAll('.profile-btn').forEach(b => b.classList.toggle('active', b.innerText === s.profile));
+                const th = document.getElementById('taskHero');
+                if(s.current_task > 0) { th.innerText = "TASK #" + s.current_task + (s.hold_duration ? " (HOLD)" : ""); th.style.display = "inline"; } else th.style.display = "none";
+                document.getElementById('currentTask').innerText = s.current_task || "-";
+                document.getElementById('holdDuration').innerText = s.hold_duration || "-";
+                document.getElementById('readableTime').innerText = s.readable_time;
+                historyData = await fetch('/history').then(r => r.json());
+                updateChart();
+            } catch(e) {} finally { isUpdating = false; }
+        }
+        async function loadTasks() {
+            try {
+                const d = await fetch('/tasks').then(r => r.json());
+                const l = document.getElementById('taskList'); let lastT = 20;
+                l.innerHTML = d.sort((a,b)=>a.task_nr-b.task_nr).map(t => {
+                    let type = t.temperature > lastT ? "📈 Heizen" : (t.temperature < lastT ? "📉 Kühlen" : "📌 Halten");
+                    lastT = t.temperature;
+                    return `<div class="task-card" style="border-left-color:${t.temperature>lastT-1?'#ff8800':'#00d2ff'}">
+                        <div class="task-info"><b>#${t.task_nr} | ${t.temperature}°C</b><p>${type} (${t.rate}°/h) | ${t.hold_time}m</p></div>
+                        <div><button onclick="req('/start/${t.task_nr}')" style="background:var(--surface-bright); border:1px solid var(--accent); color:var(--accent); border-radius:6px; padding:6px;">▶</button>
+                        <button onclick="deleteTask(${t.task_nr})" style="background:var(--danger); border:none; border-radius:8px; padding:8px; margin-left:5px;">✕</button></div>
+                    </div>`;
+                }).join('');
+            } catch(e) {}
+        }
+        async function renameProfile() {
+            const n = prompt("Neuer Name für Profil " + curP + ":", document.getElementById('pNameDisplay').innerText);
+            if(n) await req('/profile/rename/' + curP + '/' + encodeURIComponent(n));
+        }
+        async function req(url) { document.body.classList.add('loading'); await fetch(url); await update(); document.body.classList.remove('loading'); }
+        async function setProfile(p) { await req('/profile/select/'+p); loadTasks(); }
+        async function addTask() { 
+            const d = { task_nr: document.getElementById('t_nr').value, temperature: document.getElementById('t_temp').value, hold_time: document.getElementById('t_hold').value, rate: document.getElementById('t_rate').value || 0 }; 
+            await fetch('/tasks/add', { method: 'POST', body: JSON.stringify(d) }); 
+            document.getElementById('t_nr').value = ''; document.getElementById('t_temp').value = ''; document.getElementById('t_hold').value = ''; document.getElementById('t_rate').value = '';
+            toggleAddForm(); loadTasks(); 
+        }
+        async function deleteTask(nr) { if(confirm('Task #' + nr + ' löschen?')) { await fetch('/tasks/delete/' + nr); loadTasks(); } }
+        const setMode = m => req('/mode/'+m);
+        const abortTask = () => confirm('STOP?') && req('/abort');
+        function systemUpdate() { if(confirm('Update-Modus aktivieren? Dies stoppt alle Prozesse und den Server. Danach ist ein Neustart (Hardware Reset) erforderlich.')) location.href='/system/update'; }
+        const relayToggle = () => fetch('/relay/on');
+        function toggleAddForm() { const f = document.getElementById('addForm'); f.style.display = f.style.display==='none'?'block':'none'; }
+        async function init() { await update(); await loadTasks(); setInterval(update, 5000); }
+        init();
+    </script>
+</body>
+</html>
