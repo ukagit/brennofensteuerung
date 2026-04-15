@@ -16,8 +16,25 @@ profiles = ["A", "B", "C", "D", "E", "F"]
 sim_running = False
 sim_abort = False
 mode = 1
-sim_status = {"temperature": 20.0, "current_task": 0, "hold_start": None, "last_log": 0, "error": None}
+sim_status = {"temperature": 20.0, "current_task": 0, "hold_start": None, "last_log": 0, "error": None, "energy": 0.0, "total_energy": 0.0}
 keep_running = True
+
+def load_energy():
+    global sim_status
+    try:
+        with open("energy.json", "r") as f:
+            data = json.load(f)
+            sim_status["total_energy"] = data.get("total", 0.0)
+            if "connected_load" in data: wifi_config.CONNECTED_LOAD = data["connected_load"]
+    except: pass
+
+def save_energy():
+    try:
+        with open("energy.json", "w") as f:
+            json.dump({"total": sim_status["total_energy"], "connected_load": wifi_config.CONNECTED_LOAD}, f)
+    except: pass
+
+load_energy()
 
 def safe_read_temp():
     with sensor_lock:
@@ -85,13 +102,20 @@ def control_temperature_pid(target):
     pid_last_error = err
     out = (1.2 * err) + (0.02 * pid_i) + (5.0 * der)
     duty = max(0, min(PWM_WINDOW, out))
+    
+    # Energie erfassen: (An/3600h) * kW
+    kwh = (duty / 3600.0) * (wifi_config.CONNECTED_LOAD / 1000.0)
+    sim_status["energy"] += kwh
+    sim_status["total_energy"] += kwh
+    
     if duty > 0: relay.value(1); t.sleep(duty)
     if duty < PWM_WINDOW: relay.value(0); t.sleep(PWM_WINDOW - duty)
     sim_status["temperature"] = round(temp, 1)
     if t.time() - sim_status["last_log"] >= 60:
         log_history(temp, sim_status["current_task"])
         sim_status["last_log"] = t.time()
-        write_log("P:{} T#{} IST:{:.1f} SOLL:{:.1f} L:{:.0f}%".format(current_profile, sim_status["current_task"], temp, target, (duty/PWM_WINDOW)*100))
+        write_log("P:{} T#{} IST:{:.1f} SOLL:{:.1f} L:{:.0f}% E:{:.2f}kWh".format(current_profile, sim_status["current_task"], temp, target, (duty/PWM_WINDOW)*100, sim_status["energy"]))
+        save_energy()
     return True
 
 def run_program(selected_task=None):
@@ -99,6 +123,7 @@ def run_program(selected_task=None):
     if sim_running: return
     sim_running, sim_abort, mode = True, False, 3
     pid_i, pid_last_error = 0, 0
+    sim_status["energy"] = 0.0 # Session Energie zuruecksetzen
     write_log("🚀 Start " + all_tasks[current_profile]["name"])
     try:
         tl = sorted(get_tasks(), key=lambda x: x["task_nr"])
@@ -123,9 +148,11 @@ def run_program(selected_task=None):
                 sim_status["hold_start"] = t.time()
                 while t.time() - sim_status["hold_start"] < (hold * 60) and not sim_abort: control_temperature_pid(tgt)
                 sim_status["hold_start"] = None
-        write_log("🏁 Ende")
+            write_log("✅ Task {} beendet. Aktueller Verbrauch: {:.2f} kWh".format(task["task_nr"], sim_status["energy"]))
+            save_energy()
+        write_log("🏁 Ende. Gesamtverbrauch dieser Sitzung: {:.2f} kWh".format(sim_status["energy"]))
     except Exception as e: write_log("❗ Fehler: " + str(e))
-    finally: relay.value(0); sim_running, mode = False, 1
+    finally: relay.value(0); sim_running, mode = False, 1; save_energy()
 
 def monitor_temperature():
     while keep_running:
@@ -173,7 +200,28 @@ while keep_running:
         if method == "GET" and path == "/status":
             lt = t.localtime(t.time() + TIMEZONE_OFFSET)
             h_dur = "{:d}:{:02d}".format(int(t.time()-sim_status["hold_start"])//60, int(t.time()-sim_status["hold_start"])%60) if sim_status["hold_start"] else None
-            response_json(cl, {"mode": mode, "current_task": sim_status["current_task"], "temperature": sim_status["temperature"] if sim_status["temperature"] < 9000 else 1024, "running": sim_running, "readable_time": "{:02}:{:02}".format(lt[3], lt[4]), "hold_duration": h_dur, "profile": current_profile, "profile_name": all_tasks[current_profile]["name"], "error": sim_status.get("error")})
+            response_json(cl, {
+                "mode": mode, 
+                "current_task": sim_status["current_task"], 
+                "temperature": sim_status["temperature"] if sim_status["temperature"] < 9000 else 1024, 
+                "running": sim_running, 
+                "readable_time": "{:02}:{:02}".format(lt[3], lt[4]), 
+                "hold_duration": h_dur, 
+                "profile": current_profile, 
+                "profile_name": all_tasks[current_profile]["name"], 
+                "error": sim_status.get("error"),
+                "energy": round(sim_status["energy"], 2),
+                "total_energy": round(sim_status["total_energy"], 2),
+                "connected_load": wifi_config.CONNECTED_LOAD
+            })
+
+        elif method == "GET" and path.startswith("/config/load/"):
+            try:
+                load = int(path.split("/")[-1])
+                wifi_config.CONNECTED_LOAD = load
+                save_energy()
+                response_json(cl, {"ok": True})
+            except Exception as e: response_json(cl, {"err": str(e)})
         
         elif method == "GET" and path == "/system/update":
             write_log("⚠️ UPDATE MODUS AKTIVIERT")

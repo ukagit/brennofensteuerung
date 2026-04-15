@@ -178,6 +178,15 @@ Dieses Projekt ist eine reine Software-Steuerung auf Basis eines Mikrocontroller
 * **Sanftanlauf:** Kontrolliertes Anfahren für materialschonende Aufheizphasen.
 * **Stabilität:** Sicherer Betrieb auch bei trägen Hobby-Öfen.
 
+### 📊 Energie-Erfassung & Kostenkontrolle (Neu!)
+
+Behalten Sie den Stromverbrauch Ihres Ofens immer im Blick:
+
+* **Echtzeit-Verbrauch:** Anzeige des aktuellen Verbrauchs (kWh) der laufenden Sitzung im Web-Interface.
+* **Gesamtverbrauch:** Speicherung des kumulierten Verbrauchs über alle Brände hinweg (restitent gegen Neustarts).
+* **Anpassbar:** Die Anschlussleistung des Ofens (z.B. 3kW) kann direkt über die Webseite konfiguriert werden, um präzise Berechnungen für verschiedene Ofenmodelle zu ermöglichen.
+* **Protokollierung:** Automatischer Eintrag des Verbrauchs in das Logfile bei jedem Task-Wechsel und am Programmende.
+
 ### 🔄 Flexible Task- & Profilsteuerung
 
 Das Herzstück für perfekte Ergebnisse im Hobby-Keller:

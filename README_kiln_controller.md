@@ -17,6 +17,8 @@ Designed for makers, hobby ceramic artists, and experimental setups requiring re
 - 🔄 **Programmable firing profiles** (Ramp → Hold → Cooldown)  
 - 🌐 **Modern web interface** (no app required)  
 - 📊 **Live temperature monitoring** with charts  
+- 🔌 **Energy tracking** (session and total kWh)  
+- ⚙️ **Configurable power load** (e.g., 3kW) via Web UI  
 - ⚡ **Lightweight & fast** (ESP32 + MicroPython)  
 - 🧠 **Reusable profiles** for consistent results  
 

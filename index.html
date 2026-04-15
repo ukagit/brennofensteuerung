@@ -46,6 +46,8 @@
         <div class="info-box"><span class="info-label">TASK</span><span class="info-value" id="currentTask">-</span></div>
         <div class="info-box"><span class="info-label">HALTEZEIT</span><span class="info-value" id="holdDuration">-</span></div>
         <div class="info-box"><span class="info-label">ZEIT</span><span class="info-value" id="readableTime">--:--</span></div>
+        <div class="info-box"><span class="info-label">VERBRAUCH</span><span class="info-value" id="energy">0.00 kWh</span></div>
+        <div class="info-box"><span class="info-label">GESAMT</span><span class="info-value" id="totalEnergy">0.00 kWh</span></div>
     </div>
     <div class="card" style="margin-top: 15px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -79,6 +81,11 @@
         </div>
     </div>
     <div class="card">
+        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 0.8rem; color: var(--text-dim);">Anschluss (W):</span>
+            <input type="number" id="conn_load" style="margin:0; flex:1; padding: 6px;" placeholder="3000">
+            <button class="zoom-btn" onclick="saveLoad()">💾</button>
+        </div>
         <div style="display: flex; gap: 8px;">
             <button class="btn-secondary" style="flex:1" onclick="location.href='/log'">Log</button>
             <button class="btn-secondary" style="flex:1" onclick="systemUpdate()">Update</button>
@@ -106,6 +113,7 @@
                 if(s.error) { errDiv.innerText = "⚠️ " + s.error; errDiv.style.display = "block"; } else { errDiv.style.display = "none"; }
                 document.getElementById('runState').innerText = s.running ? "IN BETRIEB" : "STANDBY";
                 document.getElementById('pNameDisplay').innerText = s.profile_name;
+                document.getElementById('currentProf').innerText = s.profile;
                 curP = s.profile;
                 document.querySelectorAll('.profile-btn').forEach(b => b.classList.toggle('active', b.innerText === s.profile));
                 const th = document.getElementById('taskHero');
@@ -113,6 +121,9 @@
                 document.getElementById('currentTask').innerText = s.current_task || "-";
                 document.getElementById('holdDuration').innerText = s.hold_duration || "-";
                 document.getElementById('readableTime').innerText = s.readable_time;
+                document.getElementById('energy').innerText = s.energy.toFixed(2) + " kWh";
+                document.getElementById('totalEnergy').innerText = s.total_energy.toFixed(2) + " kWh";
+                if(!document.getElementById('conn_load').value) document.getElementById('conn_load').value = s.connected_load;
                 historyData = await fetch('/history').then(r => r.json());
                 updateChart();
             } catch(e) {} finally { isUpdating = false; }
@@ -147,6 +158,7 @@
         async function deleteTask(nr) { if(confirm('Task #' + nr + ' löschen?')) { await fetch('/tasks/delete/' + nr); loadTasks(); } }
         const setMode = m => req('/mode/'+m);
         const abortTask = () => confirm('STOP?') && req('/abort');
+        async function saveLoad() { const l = document.getElementById('conn_load').value; if(l) await req('/config/load/' + l); }
         function systemUpdate() { if(confirm('Update-Modus aktivieren? Dies stoppt alle Prozesse und den Server. Danach ist ein Neustart (Hardware Reset) erforderlich.')) location.href='/system/update'; }
         const relayToggle = () => fetch('/relay/on');
         function toggleAddForm() { const f = document.getElementById('addForm'); f.style.display = f.style.display==='none'?'block':'none'; }
