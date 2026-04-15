@@ -107,118 +107,158 @@
         let mainChart = null, previewChart = null;
 
         function initCharts() {
-            const ctx = document.getElementById('chart').getContext('2d');
-            mainChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Temp', data: [], borderColor: '#00d2ff', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true, backgroundColor: 'rgba(0,210,255,0.05)', yAxisID: 'y' }, { label: 'Task', data: [], borderColor: '#ffcc00', borderWidth: 1, pointRadius: 0, stepped: true, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }, y1: { position: 'right', display: false }, x: { grid: { color: (c) => c.index % 5 === 0 ? '#444' : 'transparent' }, ticks: { color: '#a0a0a0', maxRotation: 0, autoSkip: false, callback: function(v, i) { return i % 5 === 0 ? this.getLabelForValue(v).substring(0,5) : ''; } } } } } });
-            
-            const pCtx = document.getElementById('previewChart').getContext('2d');
-            previewChart = new Chart(pCtx, {
-                type: 'line',
-                data: { datasets: [{ label: 'Soll-Temp', data: [], borderColor: '#ff8800', borderWidth: 2, pointRadius: 3, tension: 0, fill: false }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        x: { type: 'linear', title: { display: true, text: 'Minuten', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } },
-                        y: { title: { display: true, text: '°C', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }
+            try {
+                const ctx = document.getElementById('chart').getContext('2d');
+                mainChart = new Chart(ctx, { 
+                    type: 'line', 
+                    data: { labels: [], datasets: [
+                        { label: 'Temp', data: [], borderColor: '#00d2ff', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true, backgroundColor: 'rgba(0,210,255,0.05)', yAxisID: 'y' }, 
+                        { label: 'Task', data: [], borderColor: '#ffcc00', borderWidth: 1, pointRadius: 0, stepped: true, yAxisID: 'y1' }
+                    ]}, 
+                    options: { 
+                        responsive: true, maintainAspectRatio: false, 
+                        plugins: { legend: { display: false } }, 
+                        scales: { 
+                            y: { display: true, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }, 
+                            y1: { display: false, position: 'right' }, 
+                            x: { display: true, grid: { color: '#444' }, ticks: { color: '#a0a0a0' } } 
+                        } 
+                    } 
+                });
+                
+                const pCtx = document.getElementById('previewChart').getContext('2d');
+                previewChart = new Chart(pCtx, {
+                    type: 'line',
+                    data: { datasets: [{ label: 'Soll-Temp', data: [], borderColor: '#ff8800', borderWidth: 2, pointRadius: 3, tension: 0, fill: false }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { 
+                            x: { type: 'linear', display: true, title: { display: true, text: 'Minuten', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } },
+                            y: { display: true, title: { display: true, text: '°C', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }
+                        }
                     }
-                }
-            });
+                });
+            } catch(e) { console.error("Chart init failed", e); }
         }
 
         function updatePreview(tasks) {
-            if(!previewChart) return;
-            let points = [], curT = 20, curM = 0;
-            points.push({x: 0, y: curT});
-            tasks.sort((a,b)=>a.task_nr-b.task_nr).forEach(t => {
-                let targetT = parseFloat(t.temperature);
-                let rate = parseFloat(t.rate);
-                let hold = parseFloat(t.hold_time);
-                
-                if(rate > 0) {
-                    let dur = (Math.abs(targetT - curT) / rate) * 60;
-                    curM += dur; curT = targetT;
-                    points.push({x: Math.round(curM), y: curT});
-                } else {
-                    curT = targetT;
-                    points.push({x: Math.round(curM), y: curT});
-                }
-                if(hold > 0) {
-                    curM += hold;
-                    points.push({x: Math.round(curM), y: curT});
-                }
-            });
-            previewChart.data.datasets[0].data = points;
-            previewChart.update();
+            if (!previewChart || !tasks || !Array.isArray(tasks)) return;
+            try {
+                let points = [], curT = 20, curM = 0;
+                points.push({ x: 0, y: curT });
+
+                [...tasks].sort((a, b) => Number(a.task_nr) - Number(b.task_nr)).forEach(t => {
+                    const targetT = Number(t.temperature) || 20;
+                    const rate = Number(t.rate) || 0;
+                    const hold = Number(t.hold_time) || 0;
+
+                    if (rate > 0) {
+                        const dur = (Math.abs(targetT - curT) / rate) * 60;
+                        curM += dur;
+                        curT = targetT;
+                        points.push({ x: Math.round(curM), y: curT });
+                    } else {
+                        curT = targetT;
+                        points.push({ x: Math.round(curM), y: curT });
+                    }
+                    if (hold > 0) {
+                        curM += hold;
+                        points.push({ x: Math.round(curM), y: curT });
+                    }
+                });
+
+                previewChart.data.datasets[0].data = points;
+                previewChart.options.scales.x.min = 0;
+                previewChart.options.scales.x.suggestedMax = Math.max(60, curM);
+                previewChart.update();
+            } catch(e) { console.error("Preview update failed", e); }
         }
 
         function setZoom(m) { zoomMinutes = m; document.querySelectorAll('.zoom-btn').forEach(b => b.classList.toggle('active', b.innerText.includes(m/60+'h'))); updateChart(); }
         
         function updateChart() { 
-            if(!mainChart || !historyData.length) return; 
-            const p = Math.ceil(zoomMinutes/3); 
-            const d = historyData.slice(-p); 
-            mainChart.data.labels = d.map(x=>x[0]); 
-            mainChart.data.datasets[0].data = d.map(x=>x[1]); 
-            mainChart.data.datasets[1].data = d.map(x=>x[2]); 
-            mainChart.update('none'); 
+            if(!mainChart || !historyData || !historyData.length) return; 
+            try {
+                const p = Math.ceil(zoomMinutes/3); 
+                const d = historyData.slice(-p); 
+                mainChart.data.labels = d.map(x => x[0] || "--:--"); 
+                mainChart.data.datasets[0].data = d.map(x => Number(x[1]) || 0); 
+                mainChart.data.datasets[1].data = d.map(x => Number(x[2]) || 0); 
+                mainChart.update('none'); 
+            } catch(e) { console.error("Main chart update failed", e); }
         }
 
         async function update() {
-            if(isUpdating) return; isUpdating = true;
+            if (isUpdating) return; 
+            isUpdating = true;
             try {
-                const s = await fetch('/status').then(r => r.json());
-                document.getElementById('temp').innerText = s.temperature !== null ? s.temperature.toFixed(1) : "--";
-                const errDiv = document.getElementById('errorMsg');
-                if(s.error) { errDiv.innerText = "⚠️ " + s.error; errDiv.style.display = "block"; } else { errDiv.style.display = "none"; }
-                document.getElementById('runState').innerText = s.running ? "IN BETRIEB" : "STANDBY";
-                document.getElementById('pNameDisplay').innerText = s.profile_name;
-                document.getElementById('currentProf').innerText = s.profile;
-                curP = s.profile;
-                document.querySelectorAll('.profile-btn').forEach(b => b.classList.toggle('active', b.innerText === s.profile));
-                const th = document.getElementById('taskHero');
-                if(s.current_task > 0) { th.innerText = "TASK #" + s.current_task + (s.hold_duration ? " (HOLD)" : ""); th.style.display = "inline"; } else th.style.display = "none";
-                document.getElementById('currentTask').innerText = s.current_task || "-";
-                document.getElementById('holdDuration').innerText = s.hold_duration || "-";
-                document.getElementById('readableTime').innerText = s.readable_time;
-                document.getElementById('energy').innerText = s.energy.toFixed(2) + " kWh";
-                document.getElementById('totalEnergy').innerText = s.total_energy.toFixed(2) + " kWh";
-                if(!document.getElementById('conn_load').value) document.getElementById('conn_load').value = s.connected_load;
-                historyData = await fetch('/history').then(r => r.json());
+                const r = await fetch('/status');
+                const s = await r.json();
+                
+                if(s) {
+                    document.getElementById('temp').innerText = (s.temperature !== undefined && s.temperature !== null) ? Number(s.temperature).toFixed(1) : "--";
+                    const errDiv = document.getElementById('errorMsg');
+                    if(s.error) { errDiv.innerText = "⚠️ " + s.error; errDiv.style.display = "block"; } else { errDiv.style.display = "none"; }
+                    document.getElementById('runState').innerText = s.running ? "IN BETRIEB" : "STANDBY";
+                    document.getElementById('pNameDisplay').innerText = s.profile_name || "Unbekannt";
+                    document.getElementById('currentProf').innerText = s.profile || "-";
+                    curP = s.profile || "A";
+                    document.querySelectorAll('.profile-btn').forEach(b => b.classList.toggle('active', b.innerText === s.profile));
+                    const th = document.getElementById('taskHero');
+                    if(s.current_task > 0) { th.innerText = "TASK #" + s.current_task + (s.hold_duration ? " (HOLD)" : ""); th.style.display = "inline"; } else th.style.display = "none";
+                    document.getElementById('currentTask').innerText = s.current_task || "-";
+                    document.getElementById('holdDuration').innerText = s.hold_duration || "-";
+                    document.getElementById('readableTime').innerText = s.readable_time || "--:--";
+                    
+                    document.getElementById('energy').innerText = (Number(s.energy) || 0).toFixed(2) + " kWh";
+                    document.getElementById('totalEnergy').innerText = (Number(s.total_energy) || 0).toFixed(2) + " kWh";
+                    
+                    const clInput = document.getElementById('conn_load');
+                    if (clInput && !clInput.value) { clInput.value = s.connected_load || 3000; }
+                }
+
+                const hRes = await fetch('/history');
+                historyData = await hRes.json();
                 updateChart();
-            } catch(e) {} finally { isUpdating = false; }
+            } catch (e) { console.error("Update failed", e); } finally { isUpdating = false; }
         }
 
         async function loadTasks() {
             try {
-                const d = await fetch('/tasks').then(r => r.json());
-                updatePreview(d);
-                const l = document.getElementById('taskList'); let lastT = 20;
-                l.innerHTML = d.sort((a,b)=>a.task_nr-b.task_nr).map(t => {
-                    let type = t.temperature > lastT ? "📈 Heizen" : (t.temperature < lastT ? "📉 Kühlen" : "📌 Halten");
-                    let color = t.temperature > lastT - 1 ? '#ff8800' : '#00d2ff';
-                    lastT = t.temperature;
-                    return `<div class="task-card" style="border-left-color:${color}">
-                        <div class="task-info"><b>#${t.task_nr} | ${t.temperature}°C</b><p>${type} (${t.rate}°/h) | ${t.hold_time}m</p></div>
-                        <div><button onclick="req('/start/${t.task_nr}')" style="background:var(--surface-bright); border:1px solid var(--accent); color:var(--accent); border-radius:6px; padding:6px;">▶</button>
-                        <button onclick="deleteTask(${t.task_nr})" style="background:var(--danger); border:none; border-radius:8px; padding:8px; margin-left:5px;">✕</button></div>
-                    </div>`;
-                }).join('');
-            } catch(e) {}
+                const r = await fetch('/tasks');
+                const d = await r.json();
+                if(d && Array.isArray(d)) {
+                    updatePreview(d);
+                    const l = document.getElementById('taskList'); let lastT = 20;
+                    l.innerHTML = d.sort((a,b)=>Number(a.task_nr)-Number(b.task_nr)).map(t => {
+                        const temp = Number(t.temperature) || 0;
+                        let type = temp > lastT ? "📈 Heizen" : (temp < lastT ? "📉 Kühlen" : "📌 Halten");
+                        let color = temp > lastT - 1 ? '#ff8800' : '#00d2ff';
+                        lastT = temp;
+                        return `<div class="task-card" style="border-left-color:${color}">
+                            <div class="task-info"><b>#${t.task_nr} | ${temp}°C</b><p>${type} (${t.rate}°/h) | ${t.hold_time}m</p></div>
+                            <div><button onclick="req('/start/${t.task_nr}')" style="background:var(--surface-bright); border:1px solid var(--accent); color:var(--accent); border-radius:6px; padding:6px;">▶</button>
+                            <button onclick="deleteTask(${t.task_nr})" style="background:var(--danger); border:none; border-radius:8px; padding:8px; margin-left:5px;">✕</button></div>
+                        </div>`;
+                    }).join('');
+                }
+            } catch(e) { console.error("Load tasks failed", e); }
         }
 
         async function renameProfile() {
             const n = prompt("Neuer Name für Profil " + curP + ":", document.getElementById('pNameDisplay').innerText);
             if(n) await req('/profile/rename/' + curP + '/' + encodeURIComponent(n));
         }
-        async function req(url) { document.body.classList.add('loading'); await fetch(url); await update(); document.body.classList.remove('loading'); }
-        async function setProfile(p) { await req('/profile/select/'+p); loadTasks(); }
+        async function req(url) { document.body.classList.add('loading'); try { await fetch(url); await update(); } catch(e) {} document.body.classList.remove('loading'); }
+        async function setProfile(p) { await req('/profile/select/'+p); await loadTasks(); }
         async function addTask() { 
             const d = { task_nr: document.getElementById('t_nr').value, temperature: document.getElementById('t_temp').value, hold_time: document.getElementById('t_hold').value, rate: document.getElementById('t_rate').value || 0 }; 
             await fetch('/tasks/add', { method: 'POST', body: JSON.stringify(d) }); 
             document.getElementById('t_nr').value = ''; document.getElementById('t_temp').value = ''; document.getElementById('t_hold').value = ''; document.getElementById('t_rate').value = '';
-            toggleAddForm(); loadTasks(); 
+            toggleAddForm(); await loadTasks(); 
         }
-        async function deleteTask(nr) { if(confirm('Task #' + nr + ' löschen?')) { await fetch('/tasks/delete/' + nr); loadTasks(); } }
+        async function deleteTask(nr) { if(confirm('Task #' + nr + ' löschen?')) { await fetch('/tasks/delete/' + nr); await loadTasks(); } }
         const setMode = m => req('/mode/'+m);
         const abortTask = () => confirm('STOP?') && req('/abort');
         async function saveLoad() { const l = document.getElementById('conn_load').value; if(l) await req('/config/load/' + l); }

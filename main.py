@@ -89,7 +89,17 @@ pid_i, pid_last_error = 0, 0
 def control_temperature_pid(target):
     global pid_i, pid_last_error, sim_abort
     temp = safe_read_temp()
-    if temp is None: return False
+    if temp is None:
+        write_log("❌ SENSOR FEHLER: Kein Thermoelement erkannt!")
+        sim_status["error"] = "SENSOR FEHLER (Kabelbruch?)"
+        sim_abort = True
+        relay.value(0)
+        return False
+    
+    # Fehler loeschen wenn Sensor wieder okay
+    if sim_status["error"] == "SENSOR FEHLER (Kabelbruch?)":
+        sim_status["error"] = None
+
     if temp >= 9000: # Limit reached (9999.0)
         write_log("🔥 ÜBERHITZUNG / SENSOR LIMIT!")
         sim_status["error"] = "SENSOR LIMIT > 1024°C"
@@ -160,9 +170,16 @@ def monitor_temperature():
             temp = safe_read_temp()
             if temp is not None:
                 sim_status["temperature"] = round(temp, 1)
+                # Fehler loeschen wenn Sensor wieder okay
+                if sim_status["error"] == "SENSOR FEHLER (Kabelbruch?)":
+                    sim_status["error"] = None
+                
                 if t.time() - sim_status["last_log"] >= 120:
                     log_history(temp)
                     sim_status["last_log"] = t.time()
+            else:
+                sim_status["temperature"] = None # Signalisiert "--" im UI
+                sim_status["error"] = "SENSOR FEHLER (Kabelbruch?)"
         t.sleep(10); gc.collect()
     write_log("Update Modus: Monitor gestoppt")
 
