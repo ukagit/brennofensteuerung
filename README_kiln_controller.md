@@ -19,6 +19,7 @@ Designed for makers, hobby ceramic artists, and experimental setups requiring re
 - 📊 **Live temperature monitoring** with charts  
 - 🔌 **Energy tracking** (session and total kWh)  
 - ⚙️ **Configurable power load** (e.g., 3kW) via Web UI  
+- 📋 **Program preview chart** visualizes the planned firing curve  
 - ⚡ **Lightweight & fast** (ESP32 + MicroPython)  
 - 🧠 **Reusable profiles** for consistent results  
 

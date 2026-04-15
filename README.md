@@ -187,6 +187,14 @@ Behalten Sie den Stromverbrauch Ihres Ofens immer im Blick:
 * **Anpassbar:** Die Anschlussleistung des Ofens (z.B. 3kW) kann direkt über die Webseite konfiguriert werden, um präzise Berechnungen für verschiedene Ofenmodelle zu ermöglichen.
 * **Protokollierung:** Automatischer Eintrag des Verbrauchs in das Logfile bei jedem Task-Wechsel und am Programmende.
 
+### 📋 Programmvorschau (Neu!)
+
+Planen Sie Ihre Brände mit visueller Unterstützung:
+
+* **Grafische Kurve:** Automatische Generierung eines Diagramms am Ende der Webseite, das den gesamten geplanten Temperaturverlauf (Soll-Kurve) visualisiert.
+* **Zeitberechnung:** Zeigt die voraussichtliche Dauer inklusive aller Aufheiz- und Haltephasen an.
+* **Live-Vorschau:** Das Diagramm aktualisiert sich sofort bei jeder Änderung an den Tasks oder beim Profilwechsel.
+
 ### 🔄 Flexible Task- & Profilsteuerung
 
 Das Herzstück für perfekte Ergebnisse im Hobby-Keller:

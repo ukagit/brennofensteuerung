@@ -92,6 +92,10 @@
             <button class="btn-danger" style="flex:2" onclick="abortTask()">STOPP ALL</button>
         </div>
     </div>
+    <div class="card">
+        <h2>📋 PROGRAMM-VORSCHAU</h2>
+        <div style="height: 200px;"><canvas id="previewChart"></canvas></div>
+    </div>
     <div class="action-bar">
         <button class="nav-btn active" onclick="setMode(1)">🌡️ Monitor</button>
         <button class="nav-btn" onclick="setMode(2)">📈 Graph</button>
@@ -100,10 +104,63 @@
     </div>
     <script>
         let historyData = [], zoomMinutes = 120, isUpdating = false, curP = "A";
-        const ctx = document.getElementById('chart').getContext('2d');
-        const chart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Temp', data: [], borderColor: '#00d2ff', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true, backgroundColor: 'rgba(0,210,255,0.05)', yAxisID: 'y' }, { label: 'Task', data: [], borderColor: '#ffcc00', borderWidth: 1, pointRadius: 0, stepped: true, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }, y1: { position: 'right', display: false }, x: { grid: { color: (c) => c.index % 5 === 0 ? '#444' : 'transparent' }, ticks: { color: '#a0a0a0', maxRotation: 0, autoSkip: false, callback: function(v, i) { return i % 5 === 0 ? this.getLabelForValue(v).substring(0,5) : ''; } } } } } });
+        let mainChart = null, previewChart = null;
+
+        function initCharts() {
+            const ctx = document.getElementById('chart').getContext('2d');
+            mainChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Temp', data: [], borderColor: '#00d2ff', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true, backgroundColor: 'rgba(0,210,255,0.05)', yAxisID: 'y' }, { label: 'Task', data: [], borderColor: '#ffcc00', borderWidth: 1, pointRadius: 0, stepped: true, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }, y1: { position: 'right', display: false }, x: { grid: { color: (c) => c.index % 5 === 0 ? '#444' : 'transparent' }, ticks: { color: '#a0a0a0', maxRotation: 0, autoSkip: false, callback: function(v, i) { return i % 5 === 0 ? this.getLabelForValue(v).substring(0,5) : ''; } } } } } });
+            
+            const pCtx = document.getElementById('previewChart').getContext('2d');
+            previewChart = new Chart(pCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Soll-Temp', data: [], borderColor: '#ff8800', borderWidth: 2, pointRadius: 3, tension: 0, fill: false }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        x: { title: { display: true, text: 'Minuten', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } },
+                        y: { title: { display: true, text: '°C', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }
+                    }
+                }
+            });
+        }
+
+        function updatePreview(tasks) {
+            if(!previewChart) return;
+            let data = [], labels = [], curT = 20, curM = 0;
+            data.push(curT); labels.push(0);
+            tasks.sort((a,b)=>a.task_nr-b.task_nr).forEach(t => {
+                let diff = Math.abs(t.temperature - curT);
+                if(t.rate > 0) {
+                    let dur = (diff / t.rate) * 60;
+                    curM += dur; curT = t.temperature;
+                    data.push(curT); labels.push(Math.round(curM));
+                } else {
+                    curT = t.temperature;
+                    data.push(curT); labels.push(Math.round(curM));
+                }
+                if(t.hold_time > 0) {
+                    curM += t.hold_time;
+                    data.push(curT); labels.push(Math.round(curM));
+                }
+            });
+            previewChart.data.labels = labels;
+            previewChart.data.datasets[0].data = data;
+            previewChart.update();
+        }
+
         function setZoom(m) { zoomMinutes = m; document.querySelectorAll('.zoom-btn').forEach(b => b.classList.toggle('active', b.innerText.includes(m/60+'h'))); updateChart(); }
-        function updateChart() { if(!historyData.length) return; const p = Math.ceil(zoomMinutes/3); const d = historyData.slice(-p); chart.data.labels = d.map(x=>x[0]); chart.data.datasets[0].data = d.map(x=>x[1]); chart.data.datasets[1].data = d.map(x=>x[2]); chart.update('none'); }
+        
+        function updateChart() { 
+            if(!mainChart || !historyData.length) return; 
+            const p = Math.ceil(zoomMinutes/3); 
+            const d = historyData.slice(-p); 
+            mainChart.data.labels = d.map(x=>x[0]); 
+            mainChart.data.datasets[0].data = d.map(x=>x[1]); 
+            mainChart.data.datasets[1].data = d.map(x=>x[2]); 
+            mainChart.update('none'); 
+        }
+
         async function update() {
             if(isUpdating) return; isUpdating = true;
             try {
@@ -128,14 +185,17 @@
                 updateChart();
             } catch(e) {} finally { isUpdating = false; }
         }
+
         async function loadTasks() {
             try {
                 const d = await fetch('/tasks').then(r => r.json());
+                updatePreview(d);
                 const l = document.getElementById('taskList'); let lastT = 20;
                 l.innerHTML = d.sort((a,b)=>a.task_nr-b.task_nr).map(t => {
                     let type = t.temperature > lastT ? "📈 Heizen" : (t.temperature < lastT ? "📉 Kühlen" : "📌 Halten");
+                    let color = t.temperature > lastT - 1 ? '#ff8800' : '#00d2ff';
                     lastT = t.temperature;
-                    return `<div class="task-card" style="border-left-color:${t.temperature>lastT-1?'#ff8800':'#00d2ff'}">
+                    return `<div class="task-card" style="border-left-color:${color}">
                         <div class="task-info"><b>#${t.task_nr} | ${t.temperature}°C</b><p>${type} (${t.rate}°/h) | ${t.hold_time}m</p></div>
                         <div><button onclick="req('/start/${t.task_nr}')" style="background:var(--surface-bright); border:1px solid var(--accent); color:var(--accent); border-radius:6px; padding:6px;">▶</button>
                         <button onclick="deleteTask(${t.task_nr})" style="background:var(--danger); border:none; border-radius:8px; padding:8px; margin-left:5px;">✕</button></div>
@@ -143,6 +203,7 @@
                 }).join('');
             } catch(e) {}
         }
+
         async function renameProfile() {
             const n = prompt("Neuer Name für Profil " + curP + ":", document.getElementById('pNameDisplay').innerText);
             if(n) await req('/profile/rename/' + curP + '/' + encodeURIComponent(n));
@@ -162,8 +223,8 @@
         function systemUpdate() { if(confirm('Update-Modus aktivieren? Dies stoppt alle Prozesse und den Server. Danach ist ein Neustart (Hardware Reset) erforderlich.')) location.href='/system/update'; }
         const relayToggle = () => fetch('/relay/on');
         function toggleAddForm() { const f = document.getElementById('addForm'); f.style.display = f.style.display==='none'?'block':'none'; }
-        async function init() { await update(); await loadTasks(); setInterval(update, 5000); }
-        init();
+        async function init() { initCharts(); await update(); await loadTasks(); setInterval(update, 5000); }
+        window.onload = init;
     </script>
 </body>
 </html>
