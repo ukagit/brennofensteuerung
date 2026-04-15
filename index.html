@@ -113,12 +113,12 @@
             const pCtx = document.getElementById('previewChart').getContext('2d');
             previewChart = new Chart(pCtx, {
                 type: 'line',
-                data: { labels: [], datasets: [{ label: 'Soll-Temp', data: [], borderColor: '#ff8800', borderWidth: 2, pointRadius: 3, tension: 0, fill: false }] },
+                data: { datasets: [{ label: 'Soll-Temp', data: [], borderColor: '#ff8800', borderWidth: 2, pointRadius: 3, tension: 0, fill: false }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: { 
-                        x: { title: { display: true, text: 'Minuten', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } },
+                        x: { type: 'linear', title: { display: true, text: 'Minuten', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } },
                         y: { title: { display: true, text: '°C', color: '#a0a0a0' }, grid: { color: '#2c2c2e' }, ticks: { color: '#a0a0a0' } }
                     }
                 }
@@ -127,25 +127,27 @@
 
         function updatePreview(tasks) {
             if(!previewChart) return;
-            let data = [], labels = [], curT = 20, curM = 0;
-            data.push(curT); labels.push(0);
+            let points = [], curT = 20, curM = 0;
+            points.push({x: 0, y: curT});
             tasks.sort((a,b)=>a.task_nr-b.task_nr).forEach(t => {
-                let diff = Math.abs(t.temperature - curT);
-                if(t.rate > 0) {
-                    let dur = (diff / t.rate) * 60;
-                    curM += dur; curT = t.temperature;
-                    data.push(curT); labels.push(Math.round(curM));
+                let targetT = parseFloat(t.temperature);
+                let rate = parseFloat(t.rate);
+                let hold = parseFloat(t.hold_time);
+                
+                if(rate > 0) {
+                    let dur = (Math.abs(targetT - curT) / rate) * 60;
+                    curM += dur; curT = targetT;
+                    points.push({x: Math.round(curM), y: curT});
                 } else {
-                    curT = t.temperature;
-                    data.push(curT); labels.push(Math.round(curM));
+                    curT = targetT;
+                    points.push({x: Math.round(curM), y: curT});
                 }
-                if(t.hold_time > 0) {
-                    curM += t.hold_time;
-                    data.push(curT); labels.push(Math.round(curM));
+                if(hold > 0) {
+                    curM += hold;
+                    points.push({x: Math.round(curM), y: curT});
                 }
             });
-            previewChart.data.labels = labels;
-            previewChart.data.datasets[0].data = data;
+            previewChart.data.datasets[0].data = points;
             previewChart.update();
         }
 
