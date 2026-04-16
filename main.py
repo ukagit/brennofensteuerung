@@ -9,7 +9,9 @@ sensor = MAX6675(spi_id=1, cs_pin=5, sck_pin=18, miso_pin=19, mosi_pin=5)
 relay = Pin(33, Pin.OUT)
 relay.value(0)
 
-history = []
+history_fine = []
+history_coarse = []
+last_coarse_time = 0
 all_tasks = {}
 current_profile = "A"
 profiles = ["A", "B", "C", "D", "E", "F"]
@@ -20,6 +22,7 @@ sim_status = {"temperature": 20.0, "current_task": 0, "hold_start": None, "last_
 keep_running = True
 
 def load_energy():
+# ... (rest of load_energy, save_energy, safe_read_temp, write_log, load_tasks, save_tasks, get_tasks)
     global sim_status
     try:
         with open("energy.json", "r") as f:
@@ -78,10 +81,19 @@ def save_tasks():
 def get_tasks(): return all_tasks[current_profile]["tasks"]
 
 def log_history(temp, task=0):
+    global last_coarse_time
     lt = t.localtime(t.time() + TIMEZONE_OFFSET)
     time_str = "{:02}:{:02}".format(lt[3], lt[4])
-    history.append((time_str, round(temp, 1), int(task), 1 if sim_status["hold_start"] else 0))
-    if len(history) > 500: history.pop(0)
+    entry = (time_str, round(temp, 1), int(task), 1 if sim_status["hold_start"] else 0)
+    with log_lock:
+        history_fine.append(entry)
+        if len(history_fine) > 180: history_fine.pop(0)
+        
+        now = t.time()
+        if now - last_coarse_time >= 600 or last_coarse_time == 0:
+            history_coarse.append(entry)
+            if len(history_coarse) > 288: history_coarse.pop(0)
+            last_coarse_time = now
 
 PWM_WINDOW = 5.0
 pid_i, pid_last_error = 0, 0
@@ -274,12 +286,27 @@ while keep_running:
                 response_json(cl, {"ok": True})
             except Exception as e: response_json(cl, {"err": str(e)})
         elif method == "GET" and path == "/history":
-            cl.send("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n[")
-            for i in range(0, len(history), 10):
-                if i > 0: cl.send(",")
-                cl.send(",".join([json.dumps(e) for e in history[i:i+10]]))
-            cl.send("]")
+            cl.send("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{")
+            with log_lock:
+                cl.send('"fine":[')
+                for i in range(0, len(history_fine), 10):
+                    if i > 0: cl.send(",")
+                    cl.send(",".join([json.dumps(e) for e in history_fine[i:i+10]]))
+                cl.send('],"coarse":[')
+                for i in range(0, len(history_coarse), 10):
+                    if i > 0: cl.send(",")
+                    cl.send(",".join([json.dumps(e) for e in history_coarse[i:i+10]]))
+                cl.send("]}")
         elif method == "GET" and path == "/tasks": response_json(cl, get_tasks())
+        elif method == "GET" and path == "/tasks/text":
+            lt = t.localtime(t.time() + TIMEZONE_OFFSET)
+            date_str = "{:02}.{:02}.{:04}".format(lt[2], lt[1], lt[0])
+            name = all_tasks[current_profile]["name"]
+            cl.send("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n")
+            cl.send("Programm: {}\tDatum: {}\n\n".format(name, date_str))
+            cl.send("Task\tTemp(C)\tRate(C/h)\tHold(m)\n")
+            for task in sorted(get_tasks(), key=lambda x: x["task_nr"]):
+                cl.send("{}\t{}\t{}\t{}\n".format(task["task_nr"], task["temperature"], task.get("rate", 0), task["hold_time"]))
         elif method == "GET" and path.startswith("/profile/select/"):
             p = path.split("/")[3].upper()
             if p in profiles: current_profile = p; response_json(cl, {"ok": True})

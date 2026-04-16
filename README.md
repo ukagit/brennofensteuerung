@@ -195,6 +195,22 @@ Planen Sie Ihre Brände mit visueller Unterstützung:
 * **Zeitberechnung:** Zeigt die voraussichtliche Dauer inklusive aller Aufheiz- und Haltephasen an.
 * **Live-Vorschau:** Das Diagramm aktualisiert sich sofort bei jeder Änderung an den Tasks oder beim Profilwechsel.
 
+### 📊 Duale Historie & Langzeit-Monitoring (Neu!)
+
+Behalten Sie kurze und lange Zeiträume gleichzeitig im Blick:
+
+*   **Hochauflösend (2h):** Detaillierte Ansicht der letzten 2 Stunden mit Werten im Minutentakt für präzise Prozesskontrolle.
+*   **Langzeit-Zeitraffer (48h):** Eine komprimierte Ansicht der letzten 48 Stunden (Werte alle 10 Minuten). Ideal für langsame Abkühlphasen oder mehrtägige Prozesse.
+*   **Flexible Zoom-Stufen:** Umschaltbar zwischen 2h, 10h, 20h und 48h direkt im Web-Interface.
+
+### 📋 Text-Export der Taskliste (Neu!)
+
+Einfache Archivierung und Weiterverarbeitung Ihrer Brennprogramme:
+
+*   **Tabellen-Format:** Ein Klick auf "Prog-Text" generiert eine saubere, Tabulator-getrennte Texttabelle (TSV).
+*   **Copy-Paste bereit:** Perfekt zum Kopieren in Excel, Word oder Google Sheets.
+*   **Inklusive Metadaten:** Der Export enthält automatisch den Programmnamen und das aktuelle Datum des Brennvorgangs.
+
 ### 🔄 Flexible Task- & Profilsteuerung
 
 Das Herzstück für perfekte Ergebnisse im Hobby-Keller:

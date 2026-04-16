@@ -20,6 +20,8 @@ Designed for makers, hobby ceramic artists, and experimental setups requiring re
 - 🔌 **Energy tracking** (session and total kWh)  
 - ⚙️ **Configurable power load** (e.g., 3kW) via Web UI  
 - 📋 **Program preview chart** visualizes the planned firing curve  
+- 📊 **Dual-Resolution History** (2h fine and 48h coarse/time-lapse view)  
+- 📝 **Task List Text Export** (TSV format with metadata for copy-paste)  
 - ⚡ **Lightweight & fast** (ESP32 + MicroPython)  
 - 🧠 **Reusable profiles** for consistent results  
 

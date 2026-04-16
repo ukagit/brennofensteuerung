@@ -56,6 +56,7 @@
                 <button class="zoom-btn active" onclick="setZoom(120)">2h</button>
                 <button class="zoom-btn" onclick="setZoom(600)">10h</button>
                 <button class="zoom-btn" onclick="setZoom(1200)">20h</button>
+                <button class="zoom-btn" onclick="setZoom(2880)">48h</button>
             </div>
         </div>
         <div id="chartContainer"><canvas id="chart"></canvas></div>
@@ -87,6 +88,7 @@
             <button class="zoom-btn" onclick="saveLoad()">💾</button>
         </div>
         <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary" style="flex:1" onclick="location.href='/tasks/text'">Prog-Text</button>
             <button class="btn-secondary" style="flex:1" onclick="location.href='/log'">Log</button>
             <button class="btn-secondary" style="flex:1" onclick="systemUpdate()">Update</button>
             <button class="btn-danger" style="flex:2" onclick="abortTask()">STOPP ALL</button>
@@ -103,7 +105,7 @@
         <button class="nav-btn" onclick="relayToggle()">🔌 Relais</button>
     </div>
     <script>
-        let historyData = [], zoomMinutes = 120, isUpdating = false, curP = "A";
+        let historyData = {fine:[], coarse:[]}, zoomMinutes = 120, isUpdating = false, curP = "A";
         let mainChart = null, previewChart = null;
 
         function initCharts() {
@@ -175,13 +177,30 @@
             } catch(e) { console.error("Preview update failed", e); }
         }
 
-        function setZoom(m) { zoomMinutes = m; document.querySelectorAll('.zoom-btn').forEach(b => b.classList.toggle('active', b.innerText.includes(m/60+'h'))); updateChart(); }
+        function setZoom(m) { 
+            zoomMinutes = m; 
+            document.querySelectorAll('.zoom-btn').forEach(b => {
+                const label = m >= 60 ? (m/60+'h') : (m+'m');
+                b.classList.toggle('active', b.innerText === label);
+            }); 
+            updateChart(); 
+        }
         
         function updateChart() { 
-            if(!mainChart || !historyData || !historyData.length) return; 
+            if(!mainChart || !historyData) return; 
             try {
-                const p = Math.ceil(zoomMinutes/3); 
-                const d = historyData.slice(-p); 
+                let d = [];
+                if (zoomMinutes <= 120) {
+                    // 2h Fine: Use fine history. Slicing up to 120 samples (if 1min/sample)
+                    d = (historyData.fine || []).slice(-120);
+                } else {
+                    // Coarse: Use 10-min history. 10h=60, 20h=120, 48h=288 samples
+                    const samples = Math.ceil(zoomMinutes / 10);
+                    d = (historyData.coarse || []).slice(-samples);
+                }
+                
+                if (d.length === 0) return;
+
                 mainChart.data.labels = d.map(x => x[0] || "--:--"); 
                 mainChart.data.datasets[0].data = d.map(x => Number(x[1]) || 0); 
                 mainChart.data.datasets[1].data = d.map(x => Number(x[2]) || 0); 
